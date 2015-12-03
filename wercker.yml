@@ -1,0 +1,42 @@
+box: debian:jessie
+build:
+  steps:
+    - install-packages:
+        packages: wget build-essential libreadline-dev libncurses5-dev libpcre3-dev libssl-dev sed
+    - script:
+        name: install ngx
+        code: |
+          wget http://openresty.org/download/ngx_openresty-1.7.10.1.tar.gz \
+            && tar xvfz ngx_openresty-1.7.10.1.tar.gz \
+            && cd ngx_openresty-1.7.10.1 \
+            && ./configure --with-luajit --with-http_gzip_static_module  --with-http_ssl_module \
+            && make \
+            && make install \
+            && rm -rf /ngx_openresty*
+    - script:
+        name: mkdir
+        code: mkdir -p mkdir /usr/local/openresty/nginx/conf
+    - script:
+        name: cp template.sh
+        code: cp template.sh $WERCKER_OUTPUT_DIR
+    - script:
+        name: cp config & chmod
+        code: cp nginx.conf app.lua /usr/local/openresty/nginx/conf/ && chmod a+r /usr/local/openresty/nginx/conf/*
+    - internal/docker-push:
+        username: $DOCKER_USERNAME
+        password: $DOCKER_PASSWORD
+        repository: $APP_IMAGE
+        cmd: "/usr/local/openresty/nginx/sbin/nginx"
+        ports: "8080"
+deploy:
+  steps:
+    - install-packages:
+        packages: curl
+    - script:
+        name: generate json
+        code: chmod +x template.sh && ./template.sh
+    - wercker/marathon-deploy:
+        marathon-url: $MARATHON_ENDPOINT
+        app-name: "edgerouter"
+        app-json-file: "router.json"
+
